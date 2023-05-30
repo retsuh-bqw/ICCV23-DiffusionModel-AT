@@ -93,6 +93,31 @@ class _BlockGroup(nn.Module):
     def forward(self, x):
         return self.block(x)
 
+class LearnableFNetBlock(nn.Module):
+    def __init__(self, dim, patches):
+        super().__init__()
+        # self.freq_coef = 0.75
+        self.projection = nn.Conv1d(dim, dim, kernel_size=1)
+
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+        x = x.view(b, c, h*w)
+        Freq = torch.fft.fft(torch.fft.fft(x.permute(0,2,1), dim=-1), dim=-2)
+
+        b, patches, c = Freq.shape
+        lowpass_filter_l = torch.exp(-0.5 * torch.square(torch.linspace(0, patches // 2 - 1, patches // 2) / (patches // 8))).view(1, patches // 2, 1).cuda()
+        lowpass_filter_r = torch.flip(torch.exp(-0.5 * torch.square(torch.linspace(1, patches // 2 , patches // 2) / (patches // 8))).view(1, patches // 2, 1).cuda(), [1])
+        lowpass_filter = torch.concat((lowpass_filter_l, lowpass_filter_r), dim=1)
+        Freq = Freq * lowpass_filter
+        lowFreq_feature = torch.fft.ifft(torch.fft.ifft(Freq, dim=-2), dim=-1).real
+        weights = 0.5 * torch.sigmoid(self.projection(x).permute(0,2,1).mean(dim=1)).unsqueeze(dim=1) + 0.5
+
+        out = weights * lowFreq_feature + (1 - weights) * (x.permute(0,2,1) - lowFreq_feature)
+
+
+        return out.permute(0,2,1).view(b,c,h,w)
+
 
 class WideResNet(nn.Module):
     """
@@ -130,10 +155,13 @@ class WideResNet(nn.Module):
         self.layer = nn.Sequential(
             _BlockGroup(num_blocks, num_channels[0], num_channels[1], 1,
                         activation_fn=activation_fn),
+            LearnableFNetBlock(num_channels[1], 1024),
             _BlockGroup(num_blocks, num_channels[1], num_channels[2], 2,
                         activation_fn=activation_fn),
+            LearnableFNetBlock(num_channels[2], 256),
             _BlockGroup(num_blocks, num_channels[2], num_channels[3], 2,
-                        activation_fn=activation_fn))
+                        activation_fn=activation_fn),
+            LearnableFNetBlock(num_channels[3], 64),)
         self.batchnorm = nn.BatchNorm2d(num_channels[3], momentum=0.01)
         self.relu = activation_fn(inplace=True)
         self.logits = nn.Linear(num_channels[3], num_classes)
