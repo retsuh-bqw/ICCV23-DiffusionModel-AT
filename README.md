@@ -1,3 +1,14 @@
+# For ICCV23 Paper#9445 Submission
+Download our trained wights from the following onedrive link: [OneDrive](https://1drv.ms/u/s!AtF4kB5K12hqgRdle06jP9b5DoGy?e=oDb45l)
+And put it to *trained_models/WRN28-10Swish_cifar10s_lr0p2_TRADES5_epoch400_bs512_fraction0p7_ls0p1/state-last.pt*
+
+Run AutoAttack Evaluation with:
+```.bash
+python eval-last-aa.py --data-dir 'cifar-data' \
+    --log-dir 'trained_models' \
+    --desc 'WRN28-10Swish_cifar10s_lr0p2_TRADES5_epoch400_bs512_fraction0p7_ls0p1'
+```
+
 # Better Diffusion Models Further Improve Adversarial Training
 
 Code for the paper [Better Diffusion Models Further Improve Adversarial Training](https://arxiv.org/pdf/2302.04638.pdf) (ICML 2023).
